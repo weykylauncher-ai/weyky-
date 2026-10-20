@@ -40,6 +40,22 @@ class LocalConversationalEngine(
           suggestions.add(ActionableOption(if (isArabic) "فحص البطارية" else "Battery", "كم نسبة البطارية؟"))
         }
 
+        if (requirements.domain == IntentDomain.BATTERY_SUFICIENCY) {
+          val target = com.example.core.intelligence.battery.BatteryTargetTimeExtractor.extractTargetTime(query)
+          if (target != null) {
+            val includesMusic = query.contains("موسيقى") || query.contains("موسيقي") ||
+              query.contains("اغنية") || query.contains("أغنية") ||
+              query.contains("music") || query.contains("song")
+            val isAr = query.any { it in '\u0600'..'\u06FF' } || Locale.getDefault().language.startsWith("ar")
+            val outcome = reasoningEngine.reasonBatteryForecast(situation, target, includesMusic, isAr)
+            when (outcome) {
+              is com.example.core.intelligence.battery.BatteryForecastOutcome.Success -> session.lastBatteryScenario = outcome.scenario
+              is com.example.core.intelligence.battery.BatteryForecastOutcome.Charging -> session.lastBatteryScenario = outcome.scenario
+              else -> {}
+            }
+          }
+        }
+
         session.recordAssistantTurn(synthesis.synthesizedSpeech, suggestions, requirements.domain.name)
         return ConversationalResponse(
           replyText = synthesis.synthesizedSpeech,

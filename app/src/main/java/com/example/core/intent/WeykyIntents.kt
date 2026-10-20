@@ -94,6 +94,24 @@ sealed interface WeykyIntent {
   // Hypothetical Scenarios (Separating questions from actions)
   object HypotheticalBatteryMusicIntent : WeykyIntent
   data class HypotheticalScheduleDelayIntent(val delayMinutes: Int = 10) : WeykyIntent
+  data class TimeAwareBatteryForecastIntent(
+    val rawQuery: String,
+    val target: com.example.core.intelligence.battery.BatteryForecastTarget? = null,
+    val includesMusic: Boolean = false,
+    val isFollowUpNavigation: Boolean = false
+  ) : WeykyIntent
+
+  // Compound Sequential Intents
+  data class CompoundStep(
+    val index: Int,
+    val segmentQuery: String,
+    val intent: WeykyIntent
+  )
+
+  data class CompoundIntent(
+    val steps: List<CompoundStep>,
+    val rawQuery: String
+  ) : WeykyIntent
 
   data class UnknownIntent(val rawQuery: String) : WeykyIntent
 }

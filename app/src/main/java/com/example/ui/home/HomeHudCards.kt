@@ -1,10 +1,13 @@
 package com.example.ui.home
 
+import android.content.res.Configuration
+import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,6 +15,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -995,6 +1003,455 @@ fun HomeTelemetryCard(
 }
 
 @Composable
+private fun MediaArtworkImage(
+  artworkBitmap: Bitmap?,
+  isMusicActivelyPlaying: Boolean,
+  borderColor: Color,
+  sizeDp: androidx.compose.ui.unit.Dp = 46.dp,
+  modifier: Modifier = Modifier
+) {
+  Box(
+    modifier = modifier
+      .size(sizeDp)
+      .shadow(
+        elevation = if (isMusicActivelyPlaying) 8.dp else 2.dp,
+        shape = RoundedCornerShape(10.dp),
+        ambientColor = JarvisHudColors.MagentaPulse,
+        spotColor = JarvisHudColors.MagentaPulse
+      )
+      .clip(RoundedCornerShape(10.dp))
+      .background(JarvisHudColors.MagentaPulse.copy(alpha = 0.16f))
+      .border(
+        width = 1.2.dp,
+        color = if (isMusicActivelyPlaying) JarvisHudColors.MagentaPulse.copy(alpha = 0.85f) else borderColor.copy(alpha = 0.45f),
+        shape = RoundedCornerShape(10.dp)
+      )
+      .testTag("music_card_image"),
+    contentAlignment = Alignment.Center
+  ) {
+    if (artworkBitmap != null) {
+      Image(
+        bitmap = artworkBitmap.asImageBitmap(),
+        contentDescription = "Track Artwork",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize()
+      )
+      if (isMusicActivelyPlaying) {
+        Box(
+          modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(3.dp)
+            .size(7.dp)
+            .clip(CircleShape)
+            .background(JarvisHudColors.NeonGreen)
+            .border(1.dp, Color.Black.copy(alpha = 0.7f), CircleShape)
+        )
+      }
+    } else {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(
+            Brush.radialGradient(
+              listOf(
+                JarvisHudColors.MagentaPulse.copy(alpha = 0.35f),
+                Color(0xFF0F0B1E)
+              )
+            )
+          ),
+        contentAlignment = Alignment.Center
+      ) {
+        Icon(
+          imageVector = Icons.Default.GraphicEq,
+          contentDescription = "Track Artwork",
+          tint = JarvisHudColors.MagentaPulse,
+          modifier = Modifier.size((sizeDp.value * 0.52f).dp)
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun MediaControlsRow(
+  isMusicActivelyPlaying: Boolean,
+  borderColor: Color,
+  textSecondary: Color,
+  onPrevious: () -> Unit,
+  onToggle: () -> Unit,
+  onNext: () -> Unit,
+  modifier: Modifier = Modifier,
+  compact: Boolean = false
+) {
+  val buttonSize = if (compact) 44.dp else 48.dp
+  val innerPlaySize = if (compact) 32.dp else 34.dp
+  val iconSize = if (compact) 20.dp else 22.dp
+
+  Row(
+    modifier = modifier,
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 4.dp)
+  ) {
+    IconButton(
+      onClick = onPrevious,
+      modifier = Modifier
+        .size(buttonSize)
+        .testTag("music_prev_button")
+    ) {
+      Icon(
+        imageVector = Icons.Default.SkipPrevious,
+        contentDescription = "Previous Track",
+        tint = textSecondary,
+        modifier = Modifier.size(iconSize)
+      )
+    }
+
+    IconButton(
+      onClick = onToggle,
+      modifier = Modifier
+        .size(buttonSize)
+        .testTag("music_play_pause_button")
+    ) {
+      Box(
+        modifier = Modifier
+          .size(innerPlaySize)
+          .clip(CircleShape)
+          .background(borderColor.copy(alpha = 0.20f))
+          .border(1.2.dp, borderColor, CircleShape),
+        contentAlignment = Alignment.Center
+      ) {
+        Icon(
+          imageVector = if (isMusicActivelyPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+          contentDescription = if (isMusicActivelyPlaying) "Pause Music" else "Play Music",
+          tint = borderColor,
+          modifier = Modifier.size(if (compact) 16.dp else 18.dp)
+        )
+      }
+    }
+
+    IconButton(
+      onClick = onNext,
+      modifier = Modifier
+        .size(buttonSize)
+        .testTag("music_next_button")
+    ) {
+      Icon(
+        imageVector = Icons.Default.SkipNext,
+        contentDescription = "Next Track",
+        tint = textSecondary,
+        modifier = Modifier.size(iconSize)
+      )
+    }
+  }
+}
+
+/**
+ * Custom Landscape Mini Player Layout.
+ * Designed specifically for landscape mode so that all three core elements
+ * (الصورة Artwork Image, العنوان Title & Artist, and الأزرار Control Buttons)
+ * are prominently visible, properly spaced, and never clipped.
+ */
+@Composable
+private fun LandscapeMusicPlayerContent(
+  trackTitle: String,
+  trackArtist: String,
+  artworkBitmap: Bitmap?,
+  isMusicActivelyPlaying: Boolean,
+  borderColor: Color,
+  textPrimary: Color,
+  textSecondary: Color,
+  onToggleMediaPlayback: () -> Unit,
+  onNextMediaTrack: () -> Unit,
+  onPreviousMediaTrack: () -> Unit
+) {
+  BoxWithConstraints(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 12.dp, vertical = 9.dp)
+  ) {
+    val isWide = maxWidth >= 320.dp
+    if (isWide) {
+      // Panoramic Landscape: Single continuous row with generous horizontal flow
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+      ) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+          modifier = Modifier.weight(1f)
+        ) {
+          MediaArtworkImage(
+            artworkBitmap = artworkBitmap,
+            isMusicActivelyPlaying = isMusicActivelyPlaying,
+            borderColor = borderColor,
+            sizeDp = 48.dp
+          )
+
+          Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+          ) {
+            Text(
+              text = trackTitle,
+              fontSize = 15.sp,
+              fontWeight = FontWeight.Bold,
+              color = textPrimary,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+              modifier = Modifier.testTag("music_card_title")
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+              Box(
+                modifier = Modifier
+                  .size(6.dp)
+                  .clip(CircleShape)
+                  .background(if (isMusicActivelyPlaying) JarvisHudColors.NeonGreen else textSecondary.copy(alpha = 0.5f))
+              )
+              Text(
+                text = trackArtist.uppercase(),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 0.8.sp,
+                color = textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("music_card_artist")
+              )
+            }
+          }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        MediaControlsRow(
+          isMusicActivelyPlaying = isMusicActivelyPlaying,
+          borderColor = borderColor,
+          textSecondary = textSecondary,
+          onPrevious = onPreviousMediaTrack,
+          onToggle = onToggleMediaPlayback,
+          onNext = onNextMediaTrack,
+          compact = false
+        )
+      }
+    } else {
+      // Compact Landscape (Side Column or Narrow Window):
+      // Custom structured two-tier layout ensuring complete visibility:
+      // Tier 1: Artwork Image + Full-width Title and Artist (never squished)
+      // Tier 2: Dedicated row of Previous, Play/Pause, Next controls (easy touch)
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+      ) {
+        // 1. الصورة والعنوان (Artwork Image + Title and Artist)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          MediaArtworkImage(
+            artworkBitmap = artworkBitmap,
+            isMusicActivelyPlaying = isMusicActivelyPlaying,
+            borderColor = borderColor,
+            sizeDp = 44.dp
+          )
+
+          Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+          ) {
+            Text(
+              text = trackTitle,
+              fontSize = 13.5.sp,
+              fontWeight = FontWeight.Bold,
+              color = textPrimary,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+              modifier = Modifier.testTag("music_card_title")
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+              Box(
+                modifier = Modifier
+                  .size(6.dp)
+                  .clip(CircleShape)
+                  .background(if (isMusicActivelyPlaying) JarvisHudColors.NeonGreen else textSecondary.copy(alpha = 0.5f))
+              )
+              Text(
+                text = trackArtist.uppercase(),
+                fontSize = 9.5.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 0.6.sp,
+                color = textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("music_card_artist")
+              )
+            }
+          }
+        }
+
+        // Sleek subtle tactical divider
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(borderColor.copy(alpha = 0.18f))
+        )
+
+        // 2. الأزرار (Dedicated Media Transport Controls)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+          IconButton(
+            onClick = onPreviousMediaTrack,
+            modifier = Modifier
+              .size(44.dp)
+              .testTag("music_prev_button")
+          ) {
+            Icon(
+              imageVector = Icons.Default.SkipPrevious,
+              contentDescription = "Previous Track",
+              tint = textSecondary,
+              modifier = Modifier.size(20.dp)
+            )
+          }
+
+          IconButton(
+            onClick = onToggleMediaPlayback,
+            modifier = Modifier
+              .size(44.dp)
+              .testTag("music_play_pause_button")
+          ) {
+            Box(
+              modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(borderColor.copy(alpha = 0.22f))
+                .border(1.2.dp, borderColor, CircleShape),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                imageVector = if (isMusicActivelyPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = if (isMusicActivelyPlaying) "Pause Music" else "Play Music",
+                tint = borderColor,
+                modifier = Modifier.size(17.dp)
+              )
+            }
+          }
+
+          IconButton(
+            onClick = onNextMediaTrack,
+            modifier = Modifier
+              .size(44.dp)
+              .testTag("music_next_button")
+          ) {
+            Icon(
+              imageVector = Icons.Default.SkipNext,
+              contentDescription = "Next Track",
+              tint = textSecondary,
+              modifier = Modifier.size(20.dp)
+            )
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Portrait Mini Player Content.
+ */
+@Composable
+private fun PortraitMusicPlayerContent(
+  trackTitle: String,
+  trackArtist: String,
+  artworkBitmap: Bitmap?,
+  isMusicActivelyPlaying: Boolean,
+  borderColor: Color,
+  textPrimary: Color,
+  textSecondary: Color,
+  onToggleMediaPlayback: () -> Unit,
+  onNextMediaTrack: () -> Unit,
+  onPreviousMediaTrack: () -> Unit
+) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 14.dp, vertical = 10.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.SpaceBetween
+  ) {
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      modifier = Modifier.weight(1f)
+    ) {
+      MediaArtworkImage(
+        artworkBitmap = artworkBitmap,
+        isMusicActivelyPlaying = isMusicActivelyPlaying,
+        borderColor = borderColor,
+        sizeDp = 44.dp
+      )
+
+      Column(modifier = Modifier.weight(1f)) {
+        Text(
+          text = trackTitle,
+          fontSize = 15.sp,
+          fontWeight = FontWeight.Bold,
+          color = textPrimary,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.testTag("music_card_title")
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          Box(
+            modifier = Modifier
+              .size(6.dp)
+              .clip(CircleShape)
+              .background(if (isMusicActivelyPlaying) JarvisHudColors.NeonGreen else textSecondary.copy(alpha = 0.5f))
+          )
+          Text(
+            text = trackArtist.uppercase(),
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 0.9.sp,
+            color = textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.testTag("music_card_artist")
+          )
+        }
+      }
+    }
+
+    MediaControlsRow(
+      isMusicActivelyPlaying = isMusicActivelyPlaying,
+      borderColor = borderColor,
+      textSecondary = textSecondary,
+      onPrevious = onPreviousMediaTrack,
+      onToggle = onToggleMediaPlayback,
+      onNext = onNextMediaTrack,
+      compact = false
+    )
+  }
+}
+
+@Composable
 fun HomeMusicCard(
   uiState: WeykyUiState,
   borderColor: Color,
@@ -1004,145 +1461,63 @@ fun HomeMusicCard(
   onToggleMediaPlayback: () -> Unit,
   onNextMediaTrack: () -> Unit,
   onPreviousMediaTrack: () -> Unit,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  isLandscape: Boolean = false
 ) {
+  val configuration = LocalConfiguration.current
+  val effectiveIsLandscape = isLandscape || (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
   val mediaMeta = uiState.activeMediaMetadata
   val isMusicActivelyPlaying = uiState.isMusicPlaying || (mediaMeta?.isPlaying == true)
+  val hasActiveMedia = isMusicActivelyPlaying || (mediaMeta != null && !mediaMeta.title.isNullOrBlank())
 
   AnimatedVisibility(
-    visible = isMusicActivelyPlaying,
+    visible = hasActiveMedia,
     enter = fadeIn() + expandVertically(),
     exit = fadeOut() + shrinkVertically(),
     modifier = modifier
   ) {
     val trackTitle = mediaMeta?.title?.takeIf { it.isNotBlank() } ?: "جاري تشغيل الموسيقى"
     val trackArtist = mediaMeta?.artist?.takeIf { it.isNotBlank() } ?: "AUDIO STREAM // ACTIVE"
+    val artworkBitmap = mediaMeta?.artworkBitmap
+
     Column {
       Spacer(modifier = Modifier.height(6.dp))
       JarvisHudCard(
         accentColor = borderColor,
         containerColor = panelBgElevated,
         cutCornerSize = 14.dp,
-        tabTitle = "MUSIC",
+        tabTitle = if (effectiveIsLandscape) "MINI PLAYER" else "MUSIC",
         tabPosition = HudTabPosition.TOP_START,
         modifier = Modifier
           .fillMaxWidth()
           .testTag("music_top_hud_card")
       ) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.weight(1f)
-          ) {
-            Box(
-              modifier = Modifier
-                .size(40.dp)
-                .shadow(
-                  elevation = 10.dp,
-                  shape = CircleShape,
-                  ambientColor = JarvisHudColors.MagentaPulse,
-                  spotColor = JarvisHudColors.MagentaPulse
-                )
-                .clip(CircleShape)
-                .background(JarvisHudColors.MagentaPulse.copy(alpha = 0.16f))
-                .border(1.5.dp, JarvisHudColors.MagentaPulse.copy(alpha = 0.85f), CircleShape),
-              contentAlignment = Alignment.Center
-            ) {
-              Icon(
-                imageVector = Icons.Default.GraphicEq,
-                contentDescription = "Now Playing",
-                tint = JarvisHudColors.MagentaPulse,
-                modifier = Modifier.size(20.dp)
-              )
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = trackTitle,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag("music_card_title")
-              )
-              Spacer(modifier = Modifier.height(2.dp))
-              Text(
-                text = trackArtist.uppercase(),
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 0.9.sp,
-                color = textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag("music_card_artist")
-              )
-            }
-          }
-
-          // Tactical Media Transport Controls (Previous / Pause-Play / Next)
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-          ) {
-            IconButton(
-              onClick = onPreviousMediaTrack,
-              modifier = Modifier
-                .size(48.dp)
-                .testTag("music_prev_button")
-            ) {
-              Icon(
-                imageVector = Icons.Default.SkipPrevious,
-                contentDescription = "Previous Track",
-                tint = textSecondary,
-                modifier = Modifier.size(22.dp)
-              )
-            }
-
-            IconButton(
-              onClick = onToggleMediaPlayback,
-              modifier = Modifier
-                .size(48.dp)
-                .testTag("music_play_pause_button")
-            ) {
-              Box(
-                modifier = Modifier
-                  .size(34.dp)
-                  .clip(CircleShape)
-                  .background(borderColor.copy(alpha = 0.16f))
-                  .border(1.2.dp, borderColor, CircleShape),
-                contentAlignment = Alignment.Center
-              ) {
-                Icon(
-                  imageVector = if (isMusicActivelyPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                  contentDescription = if (isMusicActivelyPlaying) "Pause Music" else "Play Music",
-                  tint = borderColor,
-                  modifier = Modifier.size(18.dp)
-                )
-              }
-            }
-
-            IconButton(
-              onClick = onNextMediaTrack,
-              modifier = Modifier
-                .size(48.dp)
-                .testTag("music_next_button")
-            ) {
-              Icon(
-                imageVector = Icons.Default.SkipNext,
-                contentDescription = "Next Track",
-                tint = textSecondary,
-                modifier = Modifier.size(22.dp)
-              )
-            }
-          }
+        if (effectiveIsLandscape) {
+          LandscapeMusicPlayerContent(
+            trackTitle = trackTitle,
+            trackArtist = trackArtist,
+            artworkBitmap = artworkBitmap,
+            isMusicActivelyPlaying = isMusicActivelyPlaying,
+            borderColor = borderColor,
+            textPrimary = textPrimary,
+            textSecondary = textSecondary,
+            onToggleMediaPlayback = onToggleMediaPlayback,
+            onNextMediaTrack = onNextMediaTrack,
+            onPreviousMediaTrack = onPreviousMediaTrack
+          )
+        } else {
+          PortraitMusicPlayerContent(
+            trackTitle = trackTitle,
+            trackArtist = trackArtist,
+            artworkBitmap = artworkBitmap,
+            isMusicActivelyPlaying = isMusicActivelyPlaying,
+            borderColor = borderColor,
+            textPrimary = textPrimary,
+            textSecondary = textSecondary,
+            onToggleMediaPlayback = onToggleMediaPlayback,
+            onNextMediaTrack = onNextMediaTrack,
+            onPreviousMediaTrack = onPreviousMediaTrack
+          )
         }
       }
     }

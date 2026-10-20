@@ -129,4 +129,59 @@ class ContextActionHandler(
       visualState = CoreVisualState.RESPONDING
     )
   }
+
+  suspend fun handleTimeAwareBatteryForecast(
+    intent: com.example.core.intent.WeykyIntent.TimeAwareBatteryForecastIntent,
+    session: com.example.core.intelligence.conversation.ConversationSession? = null
+  ): ExecutionResult {
+    val builder = situationSnapshotBuilder
+    val reasoner = contextReasoningEngine
+    val isArabic = Locale.getDefault().language.startsWith("ar")
+
+    if (intent.isFollowUpNavigation) {
+      val prevScenario = session?.lastBatteryScenario
+      if (prevScenario != null && reasoner != null) {
+        val limitation = reasoner.reasonNavigationFollowUp(prevScenario, isArabic)
+        session.lastBatteryScenario = limitation.updatedScenario
+        return ExecutionResult.Success(
+          speech = limitation.synthesis.synthesizedSpeech,
+          actionTaken = "Navigation Scenario Follow-Up: ${limitation.synthesis.primaryDecision}",
+          visualState = CoreVisualState.RESPONDING,
+          primaryDecision = limitation.synthesis.primaryDecision,
+          nextStepLabel = limitation.synthesis.nextStep?.label
+        )
+      }
+    }
+
+    val target = intent.target ?: com.example.core.intelligence.battery.BatteryTargetTimeExtractor.extractTargetTime(intent.rawQuery)
+    if (target == null || builder == null || reasoner == null) {
+      return handleContextualQuery(intent.rawQuery)
+    }
+
+    val req = com.example.core.intelligence.ContextRequirements(
+      domain = com.example.core.intelligence.IntentDomain.BATTERY_SUFICIENCY,
+      required = setOf(com.example.core.intelligence.ContextField.BATTERY)
+    )
+    val snapshot = builder.captureSnapshot(req)
+    val outcome = reasoner.reasonBatteryForecast(snapshot, target, intent.includesMusic, isArabic)
+
+    when (outcome) {
+      is com.example.core.intelligence.battery.BatteryForecastOutcome.Success -> {
+        session?.lastBatteryScenario = outcome.scenario
+      }
+      is com.example.core.intelligence.battery.BatteryForecastOutcome.Charging -> {
+        session?.lastBatteryScenario = outcome.scenario
+      }
+      else -> { /* Other outcomes do not establish an active future scenario */ }
+    }
+
+    val synthesis = outcome.synthesis
+    return ExecutionResult.Success(
+      speech = synthesis.synthesizedSpeech,
+      actionTaken = "Battery Forecast [${synthesis.primaryDecision}]",
+      visualState = CoreVisualState.RESPONDING,
+      primaryDecision = synthesis.primaryDecision,
+      nextStepLabel = synthesis.nextStep?.label
+    )
+  }
 }

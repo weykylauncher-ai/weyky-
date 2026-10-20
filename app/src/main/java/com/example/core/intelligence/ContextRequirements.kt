@@ -62,9 +62,12 @@ object ContextRequirementsRegistry {
       )
     }
 
-    // 3. Battery sufficiency evaluation: "هل البطارية ستكفي؟" / "will my battery last?" / "is battery enough?"
-    if ((input.contains("بطارية") || input.contains("البطارية") || input.contains("battery")) &&
-      (input.contains("تكفي") || input.contains("ستكفي") || input.contains("تصمد") || input.contains("last") || input.contains("enough"))
+    // 3. Battery sufficiency & time-aware forecast: "هل البطارية ستكفي؟" / "كم ستتبقى من البطارية حتى المساء؟"
+    if ((input.contains("بطارية") || input.contains("البطارية") || input.contains("بطاريه") || input.contains("battery")) &&
+      (input.contains("تكفي") || input.contains("ستكفي") || input.contains("تصمد") || input.contains("ستصمد") ||
+       input.contains("ستتبقى") || input.contains("تتبقى") || input.contains("يتبقى") || input.contains("سيبقى") ||
+       input.contains("باقي") || input.contains("متبقي") || input.contains("last") || input.contains("enough") ||
+       input.contains("remain") || input.contains("left") || input.contains("until") || input.contains("حتى"))
     ) {
       return ContextRequirements(
         domain = IntentDomain.BATTERY_SUFICIENCY,

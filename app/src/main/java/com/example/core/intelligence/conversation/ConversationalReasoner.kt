@@ -168,6 +168,24 @@ class ConversationalReasoner(
     session: ConversationSession,
     isArabic: Boolean
   ): ReasoningResult? {
+    // Follow-up about battery scenario: navigation addition
+    val prevScenario = session.lastBatteryScenario
+    if (prevScenario != null && (query.contains("ملاحة") || query.contains("ملاحه") || query.contains("خرائط") || query.contains("navigation") || query.contains("gps"))) {
+      val reasoningEngine = com.example.core.intelligence.ContextReasoningEngine()
+      val limitation = reasoningEngine.reasonNavigationFollowUp(prevScenario, isArabic)
+      session.lastBatteryScenario = limitation.updatedScenario
+      session.currentTopic = "battery"
+      session.lastReferencedSubject = "battery"
+      return ReasoningResult(
+        replyText = limitation.synthesis.synthesizedSpeech,
+        topicDetected = "battery",
+        proactiveSuggestions = listOf(
+          ActionableOption(limitation.synthesis.nextStep?.label ?: (if (isArabic) "توصيل شاحن السيارة" else "Connect car charger"), "وصل الشاحن"),
+          ActionableOption(if (isArabic) "فحص البطارية" else "Battery", "كم نسبة البطارية؟")
+        )
+      )
+    }
+
     val topic = session.currentTopic ?: return null
 
     // Follow-up about phone: "وماذا تعرف عنه؟"
@@ -191,7 +209,7 @@ class ConversationalReasoner(
     }
 
     when (topic) {
-      "travel" -> {
+      "travel", "salalah_tourism" -> {
         if (query.contains("طقس") || query.contains("جو") || query.contains("مطر") || query.contains("ملابس") || query.contains("weather") || query.contains("cold")) {
           val reply = if (isArabic) {
             "في صلالة خلال موسم الخريف، يكون الطقس معتدلاً ومائلاً للبرودة في الجبال (~22-25°م) مع رذاذ وضباب مستمر. يُنصح بإحضار ملابس خفيفة مع سترة مقاومة للرطوبة وأحذية مريحة للمشي في الطبيعة."

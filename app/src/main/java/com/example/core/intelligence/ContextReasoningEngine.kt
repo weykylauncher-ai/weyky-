@@ -1,6 +1,13 @@
 package com.example.core.intelligence
 
 import com.example.core.context.ContextState
+import com.example.core.intelligence.battery.BatteryForecastCalculator
+import com.example.core.intelligence.battery.BatteryForecastOutcome
+import com.example.core.intelligence.battery.BatteryForecastScenario
+import com.example.core.intelligence.battery.BatteryForecastTarget
+import com.example.core.intelligence.battery.BatteryTargetTimeExtractor
+import com.example.core.intelligence.time.SystemTimeProvider
+import com.example.core.intelligence.time.TimeProvider
 import com.example.device.battery.ChargingState
 import java.util.Locale
 
@@ -8,7 +15,10 @@ import java.util.Locale
  * Deterministic, explainable reasoning engine that connects disparate telemetry streams,
  * distinguishes facts from inferences, and provides actionable recommendations.
  */
-class ContextReasoningEngine {
+class ContextReasoningEngine(
+  private val timeProvider: TimeProvider = SystemTimeProvider()
+) {
+  val batteryForecastCalculator = BatteryForecastCalculator(timeProvider)
 
   fun synthesize(
     requirements: ContextRequirements,
@@ -20,12 +30,35 @@ class ContextReasoningEngine {
     return when (requirements.domain) {
       IntentDomain.OUTDOOR_DEPARTURE -> reasonOutdoorDeparture(snapshot, isArabic)
       IntentDomain.APPOINTMENT_TIMING -> reasonAppointmentTiming(snapshot, isArabic)
-      IntentDomain.BATTERY_SUFICIENCY -> reasonBatterySufficiency(snapshot, isArabic)
+      IntentDomain.BATTERY_SUFICIENCY -> {
+        val target = BatteryTargetTimeExtractor.extractTargetTime(userQuery)
+        if (target != null) {
+          val includesMusic = userQuery.contains("موسيقى") || userQuery.contains("موسيقي") ||
+            userQuery.contains("اغنية") || userQuery.contains("أغنية") ||
+            userQuery.contains("music") || userQuery.contains("song")
+          batteryForecastCalculator.calculateForecast(snapshot, target, includesMusic, isArabic).synthesis
+        } else {
+          reasonBatterySufficiency(snapshot, isArabic)
+        }
+      }
       IntentDomain.SITUATION_OVERVIEW -> reasonSituationOverview(snapshot, isArabic)
       IntentDomain.WEATHER_ONLY -> reasonWeatherOnly(snapshot, isArabic)
       else -> reasonGeneral(snapshot, userQuery, isArabic)
     }
   }
+
+  fun reasonBatteryForecast(
+    snapshot: SituationSnapshot,
+    target: BatteryForecastTarget,
+    includesMusic: Boolean,
+    isArabic: Boolean
+  ): BatteryForecastOutcome = batteryForecastCalculator.calculateForecast(snapshot, target, includesMusic, isArabic)
+
+  fun reasonNavigationFollowUp(
+    previousScenario: BatteryForecastScenario,
+    isArabic: Boolean
+  ): BatteryForecastOutcome.NavigationFollowUpHonestLimitation =
+    batteryForecastCalculator.reasonNavigationFollowUp(previousScenario, isArabic)
 
   // 1. "هل اخرج الان؟"
   private fun reasonOutdoorDeparture(
@@ -376,7 +409,7 @@ class ContextReasoningEngine {
 
     return ContextualSynthesis(
       synthesizedSpeech = speech,
-      primaryDecision = "Music Impact Estimated (No Playback)",
+      primaryDecision = if (isArabic) "استهلاك الموسيقى (تقديري)" else "Music Impact Estimated (No Playback)",
       factsUsed = listOf("Measured Battery: $pct%", "General statistical estimate: ~4-8%/hr"),
       inferencesMade = listOf("Actual consumption depends on volume, speaker/headset, streaming, and screen state"),
       recommendations = listOf(if (isArabic) "تشغيل الموسيقى عند الرغبة" else "Play music when desired"),

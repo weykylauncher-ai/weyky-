@@ -377,6 +377,7 @@ private fun LandscapeThreeColumnHomeScreen(
   val dynamicCoreSize = deviceProfile.calculateAdaptiveCoreSize(uiState.coreScale)
 
   val isMusicActivelyPlaying = uiState.isMusicPlaying || (uiState.activeMediaMetadata?.isPlaying == true)
+  val hasActiveMedia = isMusicActivelyPlaying || (uiState.activeMediaMetadata != null && !uiState.activeMediaMetadata.title.isNullOrBlank())
   val hasResponse = !uiState.lastResponseText.isNullOrBlank()
   val battery = uiState.batterySnapshot
   val isLowBattery = battery != null && battery.isAvailable && battery.percentage <= 20 &&
@@ -438,7 +439,7 @@ private fun LandscapeThreeColumnHomeScreen(
         modifier = Modifier.fillMaxWidth()
       )
 
-      // Middle: Active auxiliary cards (Music / Context Alerts)
+      // Middle: Active auxiliary cards (Mini Player / Context Alerts)
       Column(
         modifier = Modifier
           .weight(1f)
@@ -448,7 +449,7 @@ private fun LandscapeThreeColumnHomeScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
       ) {
-        if (isMusicActivelyPlaying) {
+        if (hasActiveMedia) {
           HomeMusicCard(
             uiState = uiState,
             borderColor = borderColor,
@@ -457,9 +458,14 @@ private fun LandscapeThreeColumnHomeScreen(
             textSecondary = textSecondary,
             onToggleMediaPlayback = onToggleMediaPlayback,
             onNextMediaTrack = onNextMediaTrack,
-            onPreviousMediaTrack = onPreviousMediaTrack
+            onPreviousMediaTrack = onPreviousMediaTrack,
+            isLandscape = true
           )
-        } else if (hasAlert) {
+        }
+        if (hasAlert) {
+          if (hasActiveMedia) {
+            Spacer(modifier = Modifier.height(4.dp))
+          }
           HomeContextAlertCard(
             uiState = uiState,
             borderColor = borderColor,
@@ -763,7 +769,8 @@ private fun TabletExpandedHomeScreen(
               textSecondary = textSecondary,
               onToggleMediaPlayback = onToggleMediaPlayback,
               onNextMediaTrack = onNextMediaTrack,
-              onPreviousMediaTrack = onPreviousMediaTrack
+              onPreviousMediaTrack = onPreviousMediaTrack,
+              isLandscape = isLandscape
             )
 
             HomeContextAlertCard(
@@ -868,7 +875,8 @@ private fun TabletExpandedHomeScreen(
             textSecondary = textSecondary,
             onToggleMediaPlayback = onToggleMediaPlayback,
             onNextMediaTrack = onNextMediaTrack,
-            onPreviousMediaTrack = onPreviousMediaTrack
+            onPreviousMediaTrack = onPreviousMediaTrack,
+            isLandscape = isLandscape
           )
 
           HomeContextAlertCard(
@@ -1021,7 +1029,8 @@ private fun FoldableTabletopHomeScreen(
         textSecondary = textSecondary,
         onToggleMediaPlayback = onToggleMediaPlayback,
         onNextMediaTrack = onNextMediaTrack,
-        onPreviousMediaTrack = onPreviousMediaTrack
+        onPreviousMediaTrack = onPreviousMediaTrack,
+        isLandscape = true
       )
 
       HomeContextAlertCard(

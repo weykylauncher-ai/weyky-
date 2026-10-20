@@ -162,7 +162,52 @@ object IntentParser {
     }
   }
 
-  fun parse(rawInput: String, session: com.example.core.intelligence.conversation.ConversationSession? = null): WeykyIntent {
+  private val COMPOUND_DELIMITERS_REGEX = Regex(
+    "(?:\\s+ثم\\s+بعد\\s+ذلك\\s+|\\s+ثم\\s+|\\s+وبعدها\\s+|\\s+وبعد\\s+ذلك\\s+|\\s*,\\s*then\\s+|\\s+and\\s+then\\s+|\\s+then\\s+)",
+    RegexOption.IGNORE_CASE
+  )
+
+  fun hasCompoundDelimiter(rawInput: String): Boolean {
+    // Avoid false positives in short greetings or wake phrases
+    if (rawInput.trim().length < 6) return false
+    return COMPOUND_DELIMITERS_REGEX.containsMatchIn(rawInput)
+  }
+
+  fun tryParseCompound(
+    rawInput: String,
+    session: com.example.core.intelligence.conversation.ConversationSession? = null
+  ): WeykyIntent? {
+    val segments = rawInput.split(COMPOUND_DELIMITERS_REGEX)
+      .map { it.trim() }
+      .filter { it.isNotBlank() }
+
+    if (segments.size < 2) return null
+
+    val steps = mutableListOf<WeykyIntent.CompoundStep>()
+    for ((index, seg) in segments.withIndex()) {
+      // Parse child segment with allowCompound = false to strictly prevent recursion
+      val childIntent = parse(seg, session, allowCompound = false)
+
+      // Validate child intent: UnknownIntent or ConversationalIntent without recognized action should reject compound execution
+      if (childIntent is WeykyIntent.UnknownIntent) {
+        return null
+      }
+      if (childIntent is WeykyIntent.ConversationalIntent) {
+        // If a segment falls through to ConversationalIntent without actionable capability, do not treat as executable compound command
+        return null
+      }
+
+      steps.add(WeykyIntent.CompoundStep(index, seg, childIntent))
+    }
+
+    return WeykyIntent.CompoundIntent(steps = steps, rawQuery = rawInput)
+  }
+
+  fun parse(
+    rawInput: String,
+    session: com.example.core.intelligence.conversation.ConversationSession? = null,
+    allowCompound: Boolean = true
+  ): WeykyIntent {
     var input = normalize(rawInput)
     if (input.isBlank()) return WeykyIntent.UnknownIntent("")
 
@@ -180,9 +225,35 @@ object IntentParser {
       }
     }
 
+    // Check for compound command splitting if enabled
+    if (allowCompound && hasCompoundDelimiter(rawInput)) {
+      val compound = tryParseCompound(rawInput, session)
+      if (compound != null) {
+        return compound
+      }
+    }
+
     // 1. Semantic classification & disambiguation: Questions vs Commands vs Hypotheticals
     val classified = MessageIntentClassifier.classify(rawInput, session)
     when (classified.primarySubject) {
+      "battery_navigation_followup" -> {
+        return WeykyIntent.TimeAwareBatteryForecastIntent(
+          rawQuery = rawInput,
+          isFollowUpNavigation = true
+        )
+      }
+      "battery_time_forecast" -> {
+        val target = com.example.core.intelligence.battery.BatteryTargetTimeExtractor.extractTargetTime(rawInput)
+        val includesMusic = input.contains("موسيقى") || input.contains("موسيقي") ||
+          input.contains("اغنية") || input.contains("أغنية") ||
+          input.contains("music") || input.contains("song")
+        return WeykyIntent.TimeAwareBatteryForecastIntent(
+          rawQuery = rawInput,
+          target = target,
+          includesMusic = includesMusic,
+          isFollowUpNavigation = false
+        )
+      }
       "battery_music_impact" -> return WeykyIntent.HypotheticalBatteryMusicIntent
       "schedule_delay_impact" -> return WeykyIntent.HypotheticalScheduleDelayIntent(classified.extractedDelayMinutes ?: 10)
       "song_title_provided" -> {
@@ -339,8 +410,10 @@ object IntentParser {
        input.startsWith("تطبيق ") || input.startsWith("open ") || input.startsWith("launch ") ||
        input.startsWith("start ") || isDirectAppNameQuery(input)) &&
       !input.contains("كشاف") && !input.contains("فلاش") && !input.contains("مصباح") && !input.contains("ضوء") && !input.contains("نور") &&
-      !input.contains("موسيقي") && !input.contains("موسيقى") && !input.contains("اغنيه") && !input.contains("أغنية") &&
-      !input.contains("torch") && !input.contains("flashlight") && !input.contains("music") -> {
+      !input.contains("torch") && !input.contains("flashlight") &&
+      // If user specifically requests "افتح الموسيقى" or "افتح تطبيق الموسيقى", treat as opening the music app
+      (!input.contains("موسيقي") && !input.contains("موسيقى") && !input.contains("اغنيه") && !input.contains("أغنية") && !input.contains("music") ||
+       input.startsWith("افتح ") || input.startsWith("إفتح ") || input.startsWith("open ")) -> {
         val appName = extractAppName(rawInput)
         if (appName.isNotBlank()) {
           WeykyIntent.OpenAppIntent(appName = appName)
@@ -366,7 +439,18 @@ object IntentParser {
       // 7. Battery
       input.contains("battery") || input.contains("charge") || input.contains("charging") ||
       input.contains("بطاريه") || input.contains("البطاريه") || input.contains("شحن") -> {
-        if (input.contains("setting") || input.contains("اعدادات") || input.contains("ضبط")) {
+        val target = com.example.core.intelligence.battery.BatteryTargetTimeExtractor.extractTargetTime(rawInput)
+        if (target != null || com.example.core.intelligence.battery.BatteryTargetTimeExtractor.isBatteryForecastQuery(rawInput)) {
+          val includesMusic = input.contains("موسيقى") || input.contains("موسيقي") ||
+            input.contains("اغنية") || input.contains("أغنية") ||
+            input.contains("music") || input.contains("song")
+          WeykyIntent.TimeAwareBatteryForecastIntent(
+            rawQuery = rawInput,
+            target = target,
+            includesMusic = includesMusic,
+            isFollowUpNavigation = false
+          )
+        } else if (input.contains("setting") || input.contains("اعدادات") || input.contains("ضبط")) {
           WeykyIntent.SettingsIntent(WeykyIntent.SettingsType.BATTERY)
         } else {
           WeykyIntent.BatteryIntent

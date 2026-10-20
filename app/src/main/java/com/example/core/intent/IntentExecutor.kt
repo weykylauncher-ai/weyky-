@@ -103,6 +103,13 @@ class IntentExecutor(
         }
         contextActionHandler.handleHypotheticalScheduleDelay(intent.delayMinutes)
       }
+      is WeykyIntent.TimeAwareBatteryForecastIntent -> {
+        localConversationalEngine?.session?.let {
+          it.currentTopic = "battery"
+          it.lastReferencedSubject = "battery"
+        }
+        contextActionHandler.handleTimeAwareBatteryForecast(intent, localConversationalEngine?.session)
+      }
 
       is WeykyIntent.WifiIntent -> networkActionHandler.handleWifi(intent.openSettings)
       is WeykyIntent.BluetoothIntent -> networkActionHandler.handleBluetooth()
@@ -121,9 +128,134 @@ class IntentExecutor(
       is WeykyIntent.ContextualQueryIntent -> contextActionHandler.handleContextualQuery(intent.rawQuery)
       is WeykyIntent.ConversationalIntent -> executeConversational(intent.rawQuery)
       is WeykyIntent.HelpIntent -> executeHelp()
+      is WeykyIntent.CompoundIntent -> executeCompound(intent)
       is WeykyIntent.WakeIntent -> executeWake()
       is WeykyIntent.UnknownIntent -> executeConversational(intent.rawQuery)
     }
+  }
+
+  private suspend fun executeCompound(compound: WeykyIntent.CompoundIntent): ExecutionResult {
+    val isArabic = Locale.getDefault().language.startsWith("ar")
+    val executedSpeeches = mutableListOf<String>()
+    val executedActions = mutableListOf<String>()
+
+    for (step in compound.steps) {
+      val stepResult = execute(step.intent)
+
+      when (stepResult) {
+        is ExecutionResult.Success -> {
+          executedSpeeches.add(stepResult.speech)
+          stepResult.actionTaken?.let { executedActions.add(it) }
+        }
+        is ExecutionResult.RequiresPermission -> {
+          // Blocking permission requirement encountered: abort subsequent steps immediately
+          val prefix = if (isArabic && executedSpeeches.isNotEmpty()) {
+            "تم تنفيذ: ${executedSpeeches.joinToString("، ")}.\nلكن "
+          } else if (executedSpeeches.isNotEmpty()) {
+            "Completed: ${executedSpeeches.joinToString(", ")}.\nHowever, "
+          } else {
+            ""
+          }
+          return ExecutionResult.RequiresPermission(
+            permission = stepResult.permission,
+            rationale = prefix + stepResult.rationale,
+            visualState = stepResult.visualState
+          )
+        }
+        is ExecutionResult.NeedsConfirmation -> {
+          // Blocking confirmation requirement encountered: abort subsequent steps
+          return stepResult
+        }
+        is ExecutionResult.Error -> {
+          // Step failed: report partial completion honestly and stop immediately
+          val partialReport = if (isArabic) {
+            if (executedSpeeches.isNotEmpty()) {
+              "تم تنفيذ (${executedSpeeches.joinToString(" و ")}) بنجاح. ولكن تعذر إكمال الخطوة '${step.segmentQuery}': ${stepResult.friendlyMessage}"
+            } else {
+              "تعذر تنفيذ '${step.segmentQuery}': ${stepResult.friendlyMessage}"
+            }
+          } else {
+            if (executedSpeeches.isNotEmpty()) {
+              "Successfully executed (${executedSpeeches.joinToString(" and ")}). But could not complete '${step.segmentQuery}': ${stepResult.friendlyMessage}"
+            } else {
+              "Could not execute '${step.segmentQuery}': ${stepResult.friendlyMessage}"
+            }
+          }
+          return ExecutionResult.Error(
+            friendlyMessage = partialReport,
+            visualState = CoreVisualState.ERROR
+          )
+        }
+        is ExecutionResult.Unavailable -> {
+          val partialReport = if (isArabic) {
+            if (executedSpeeches.isNotEmpty()) {
+              "تم تنفيذ (${executedSpeeches.joinToString(" و ")}). ولكن '${step.segmentQuery}' غير متاحة: ${stepResult.reason}"
+            } else {
+              "الخطوة '${step.segmentQuery}' غير متاحة: ${stepResult.reason}"
+            }
+          } else {
+            if (executedSpeeches.isNotEmpty()) {
+              "Executed (${executedSpeeches.joinToString(" and ")}). But '${step.segmentQuery}' is unavailable: ${stepResult.reason}"
+            } else {
+              "Step '${step.segmentQuery}' is unavailable: ${stepResult.reason}"
+            }
+          }
+          return ExecutionResult.Unavailable(
+            reason = partialReport,
+            visualState = CoreVisualState.RESPONDING
+          )
+        }
+        is ExecutionResult.Fallback -> {
+          val partialReport = if (isArabic) {
+            if (executedSpeeches.isNotEmpty()) {
+              "تم تنفيذ (${executedSpeeches.joinToString(" و ")}). بالنسبة لـ '${step.segmentQuery}': ${stepResult.explanation}"
+            } else {
+              stepResult.explanation
+            }
+          } else {
+            if (executedSpeeches.isNotEmpty()) {
+              "Executed (${executedSpeeches.joinToString(" and ")}). For '${step.segmentQuery}': ${stepResult.explanation}"
+            } else {
+              stepResult.explanation
+            }
+          }
+          return ExecutionResult.Fallback(
+            explanation = partialReport,
+            recoveryActionTitle = stepResult.recoveryActionTitle,
+            onRecoveryAction = stepResult.onRecoveryAction,
+            visualState = CoreVisualState.RESPONDING
+          )
+        }
+        is ExecutionResult.NotSupported -> {
+          val partialReport = if (isArabic) {
+            if (executedSpeeches.isNotEmpty()) {
+              "تم تنفيذ (${executedSpeeches.joinToString(" و ")}). ولكن '${step.segmentQuery}' غير مدعومة: ${stepResult.reason}"
+            } else {
+              "الخطوة '${step.segmentQuery}' غير مدعومة: ${stepResult.reason}"
+            }
+          } else {
+            if (executedSpeeches.isNotEmpty()) {
+              "Executed (${executedSpeeches.joinToString(" and ")}). But '${step.segmentQuery}' is unsupported: ${stepResult.reason}"
+            } else {
+              "Step '${step.segmentQuery}' is unsupported: ${stepResult.reason}"
+            }
+          }
+          return ExecutionResult.NotSupported(
+            reason = partialReport,
+            visualState = CoreVisualState.ERROR
+          )
+        }
+      }
+    }
+
+    // All steps executed successfully
+    val combinedSpeech = executedSpeeches.joinToString(" ثم ")
+    val combinedActions = executedActions.joinToString(" -> ")
+    return ExecutionResult.Success(
+      speech = combinedSpeech,
+      actionTaken = "Compound Sequence: $combinedActions",
+      visualState = CoreVisualState.SUCCESS
+    )
   }
 
   private fun executeWake(): ExecutionResult {

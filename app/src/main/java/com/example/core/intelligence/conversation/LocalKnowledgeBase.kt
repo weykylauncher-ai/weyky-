@@ -90,7 +90,7 @@ object LocalKnowledgeBase {
     ),
     // 7. Salalah & Tourism / Seasonal Travel
     KnowledgeTopic(
-      id = "salalah_tourism",
+      id = "travel",
       keywords = listOf("صلالة", "صلاله", "خريف صلالة", "ظفار", "سياحة عمان", "سفر", "salalah"),
       arabicSummary = "صلالة هي حاضرة محافظة ظفار في سلطنة عُمان، وتشتهر بموسم 'الخريف' (من أواخر يونيو إلى سبتمبر) حيث تتحول الجبال والسهول إلى بساط أخضر ساحر مع ضباب ورذاذ منعش ودرجات حرارة معتدلة (~25°م) بينما يكون الصيف حاراً في بقية المنطقة. من أبرز معالمها: وادي دربات، عين أثوم، وشاطئ المغسيل.",
       englishSummary = "Salalah is the jewel of Dhofar, Oman. It is famous for the 'Khareef' monsoon season (late June to September), when the mountains turn lush green under refreshing mist and cool temperatures around 25°C. Top attractions include Wadi Darbat, Ayn Athum, and Mughsail Beach.",

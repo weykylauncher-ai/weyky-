@@ -20,6 +20,7 @@ class ConversationSession(private val maxTurns: Int = 20) {
   var currentTopic: String? = null
   var pendingExpectation: PendingExpectation = PendingExpectation.NONE
   var lastReferencedSubject: String? = null
+  var lastBatteryScenario: com.example.core.intelligence.battery.BatteryForecastScenario? = null
   private val entitiesMentioned = mutableSetOf<String>()
 
   fun recordUserTurn(text: String): ConversationTurn {
@@ -67,6 +68,7 @@ class ConversationSession(private val maxTurns: Int = 20) {
     currentTopic = null
     pendingExpectation = PendingExpectation.NONE
     lastReferencedSubject = null
+    lastBatteryScenario = null
     entitiesMentioned.clear()
   }
 
@@ -80,6 +82,10 @@ class ConversationSession(private val maxTurns: Int = 20) {
   private fun detectAndSetTopic(text: String) {
     val lower = text.lowercase()
     when {
+      lastBatteryScenario != null && (lower.contains("ملاحة") || lower.contains("ملاحه") || lower.contains("خرائط") || lower.contains("navigation") || lower.contains("gps")) -> {
+        currentTopic = "battery"
+        lastReferencedSubject = "battery"
+      }
       lower.contains("هاتف") || lower.contains("جهاز") || lower.contains("تلفون") || lower.contains("phone") || lower.contains("device") -> {
         currentTopic = "device_info"
         lastReferencedSubject = "phone"

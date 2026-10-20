@@ -56,6 +56,29 @@ object MessageIntentClassifier {
       }
     }
 
+    // 1b. Check if user is asking a navigation follow-up to an active battery forecast scenario
+    if (session?.lastBatteryScenario != null) {
+      val isNavFollowUp = norm.contains("ملاحة") || norm.contains("ملاحه") || norm.contains("خرائط") ||
+        norm.contains("navigation") || norm.contains("gps")
+      if (isNavFollowUp) {
+        return ClassifiedMessage(
+          type = MessageIntentType.FOLLOW_UP_QUERY,
+          primarySubject = "battery_navigation_followup"
+        )
+      }
+    }
+
+    // 1c. Check if user is asking a time-aware battery forecast query
+    val isBatteryForecast = com.example.core.intelligence.battery.BatteryTargetTimeExtractor.isBatteryForecastQuery(rawInput) ||
+      (com.example.core.intelligence.battery.BatteryTargetTimeExtractor.extractTargetTime(rawInput) != null &&
+        (norm.contains("بطار") || norm.contains("شحن") || norm.contains("battery") || norm.contains("charge")))
+    if (isBatteryForecast) {
+      return ClassifiedMessage(
+        type = MessageIntentType.INFORMATIONAL_QUESTION,
+        primarySubject = "battery_time_forecast"
+      )
+    }
+
     // 2. Hypothetical Questions: "لو...", "ماذا لو...", "هل سيؤثر لو...", "if I..."
     val isHypothetical = norm.contains("لو ") || norm.startsWith("لو") ||
       norm.contains("ماذا لو") || norm.contains("اذا شغلت") || norm.contains("اذا تاخرت") ||
