@@ -89,6 +89,9 @@ class ContextReasoningEngine(
     val nextEvent = calendar.value?.nextEvent
     if (calendar.isAvailable && nextEvent != null) {
       facts.add(if (isArabic) "موعد قادم '${nextEvent.title}' بعد ${nextEvent.minutesUntilStart} دقيقة" else "Next appointment '${nextEvent.title}' in ${nextEvent.minutesUntilStart} mins")
+      recommendations.add(if (isArabic) "الاستعداد للمغادرة للوصول في موعد '${nextEvent.title}'" else "Prepare to depart for '${nextEvent.title}'")
+    } else if (!calendar.isAvailable) {
+      unavailabilities.add(if (isArabic) "بيانات التقويم غير متاحة حالياً" else "Calendar data unavailable")
     }
 
     val battPercent = battery.value?.percentage
@@ -99,11 +102,21 @@ class ContextReasoningEngine(
         inferences.add(if (isArabic) "البطارية منخفضة وقد تنفد أثناء التنقل" else "Battery is low and may deplete during transit")
         recommendations.add(if (isArabic) "اشحن الهاتف قبل المغادرة" else "Charge phone before leaving")
       }
+    } else {
+      unavailabilities.add(if (isArabic) "بيانات البطارية غير متاحة حالياً" else "Battery telemetry unavailable")
     }
 
     if (physical.isAvailable) {
       if (physical.value?.state == ContextState.MOVING) {
         inferences.add(if (isArabic) "يبدو أنك تتحرك بالفعل" else "You appear to already be in motion")
+      }
+    }
+
+    if (recommendations.isEmpty()) {
+      if (isRaining) {
+        recommendations.add(if (isArabic) "أخذ مظلة بسبب المطر" else "Take an umbrella due to rain")
+      } else {
+        recommendations.add(if (isArabic) "الظروف مناسبة للتنقل" else "Conditions are favorable for travel")
       }
     }
 
@@ -117,8 +130,14 @@ class ContextReasoningEngine(
       if (nextEvent != null) {
         speech.append(" لديك موعد (${nextEvent.title}) بعد ${nextEvent.minutesUntilStart} دقيقة.")
       }
-      if (battery.isAvailable && battPercent != null && battPercent < 20 && !isCharging) {
-        speech.append(" تنبيه: البطارية منخفضة ($battPercent%)، يُفضل شحن الهاتف قليلاً قبل الخروج.")
+      if (battery.isAvailable && battPercent != null) {
+        if (battPercent < 20 && !isCharging) {
+          speech.append(" تنبيه: البطارية منخفضة ($battPercent%)، يُفضل شحن الهاتف قليلاً قبل الخروج.")
+        } else {
+          speech.append(" مستوى البطارية عند $battPercent%، والوضع مناسب للخروج الآن.")
+        }
+      } else if (!weather.isAvailable) {
+        speech.append(" تعذر التحقق من بيانات الطقس والبطارية؛ يُرجى فحص الظروف يدوياً قبل المغادرة.")
       } else {
         speech.append(" الوضع مناسب للخروج الآن.")
       }
@@ -130,8 +149,14 @@ class ContextReasoningEngine(
       if (nextEvent != null) {
         speech.append(" You have '${nextEvent.title}' in ${nextEvent.minutesUntilStart} minutes.")
       }
-      if (battery.isAvailable && battPercent != null && battPercent < 20 && !isCharging) {
-        speech.append(" Battery is at $battPercent%, consider charging before heading out.")
+      if (battery.isAvailable && battPercent != null) {
+        if (battPercent < 20 && !isCharging) {
+          speech.append(" Battery is at $battPercent%, consider charging before heading out.")
+        } else {
+          speech.append(" Battery is at $battPercent%, conditions are favorable to head out.")
+        }
+      } else if (!weather.isAvailable) {
+        speech.append(" Weather and battery telemetry are currently unavailable; please check conditions manually before leaving.")
       } else {
         speech.append(" Conditions are favorable to head out.")
       }
@@ -141,15 +166,23 @@ class ContextReasoningEngine(
       NextStep(label = if (isArabic) "تفعيل توفير الطاقة" else "Enable Battery Saver")
     } else null
 
+    val availableCount = listOf(weather.isAvailable, battery.isAvailable, calendar.isAvailable).count { it }
+    val calibratedConfidence = when (availableCount) {
+      3 -> 0.95f
+      2 -> 0.75f
+      1 -> 0.55f
+      else -> 0.35f
+    }
+
     return ContextualSynthesis(
       synthesizedSpeech = speech.toString().trim(),
-      primaryDecision = if (isRaining) "الخروج مع مظلة" else "مناسب للخروج",
+      primaryDecision = if (availableCount == 0) (if (isArabic) "بيانات غير مكتملة" else "Incomplete Context") else if (isRaining) "الخروج مع مظلة" else "مناسب للخروج",
       nextStep = nextStep,
       factsUsed = facts,
       inferencesMade = inferences,
       recommendations = recommendations,
       unavailabilitiesHandled = unavailabilities,
-      confidenceScore = if (weather.isAvailable) 0.95f else 0.7f
+      confidenceScore = calibratedConfidence
     )
   }
 

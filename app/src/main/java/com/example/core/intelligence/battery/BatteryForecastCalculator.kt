@@ -477,7 +477,7 @@ class BatteryForecastCalculator(
       if (isArabic) {
         speech.append("القياس الفعلي المؤكد: البطارية الآن عند $currentPct%. ")
         speech.append("التقدير الحسابي للوقت المتبقي حتى $targetDesc هو حوالي $horizonStr. ")
-        speech.append("بناءً على $rateAssumptions، يُتوقع أن تنفد البطارية تماماً (0%) قبل حلول $targetDesc [تقدير إحصائي / ESTIMATE]. ")
+        speech.append("بناءً على $rateAssumptions، يُتوقع أن تنفد البطارية تماماً (0%) قبل حلول $targetDesc [ESTIMATE] (تقدير إحصائي). ")
         speech.append("يُنصح بشحن الهاتف الآن أو تفعيل وضع توفير الطاقة.")
       } else {
         speech.append("Confirmed actual measurement: Battery is currently at $currentPct%. ")
@@ -489,16 +489,12 @@ class BatteryForecastCalculator(
         label = if (isArabic) "تفعيل توفير الطاقة" else "Enable Battery Saver"
       )
     } else {
-      primaryDecision = if (boundedMin >= 20) {
-        if (isArabic) "البطارية كافية" else "Battery Sufficient"
-      } else {
-        if (isArabic) "البطارية حرجة" else "Battery Tight"
-      }
+      primaryDecision = if (isArabic) "تقدير استهلاك البطارية" else "Battery Forecast (Estimated)"
 
       if (isArabic) {
         speech.append("القياس الفعلي المؤكد: نسبة البطارية الحالية هي $currentPct%. ")
         speech.append("الوقت المتبقي حتى $targetDesc هو حوالي $horizonStr. ")
-        speech.append("التقدير الحسابي المتوقع للبطارية المتبقية هو نطاق تقريبي بين $boundedMin% و $boundedMax% [تقدير إحصائي / ESTIMATE]. ")
+        speech.append("التقدير الحسابي المتوقع للبطارية المتبقية هو نطاق تقريبي بين $boundedMin% و $boundedMax% [ESTIMATE] (تقدير إحصائي). ")
         speech.append("تنبيه: هذا تقدير إحصائي عام مبني على $rateAssumptions وليس قياساً دقيقاً خاصاً بجهازك؛ ")
         speech.append("إذ يعتمد الصمود الفعلي على سطوع الشاشة ووقت تشغيلها، قوة إشارة الشبكة وبيانات 4G/5G، والتطبيقات النشطة في الخلفية.")
       } else {

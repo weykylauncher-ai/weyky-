@@ -276,6 +276,30 @@ class ConversationalReasoner(
         }
       }
     }
+
+    val trimmedQuery = query.trim().removeSuffix("؟").removeSuffix("?").removeSuffix(".").trim()
+    val isAmbiguousReference = trimmedQuery == "وماذا عن ذلك" || trimmedQuery == "وماذا عن هذا" ||
+      trimmedQuery == "ماذا تقصد بذلك" || trimmedQuery == "ماذا عن ذلك" || trimmedQuery == "ماذا عن هذا" ||
+      trimmedQuery == "what about that" || trimmedQuery == "what about this" || trimmedQuery == "tell me more about it" ||
+      trimmedQuery == "tell me more" || trimmedQuery == "المزيد" || trimmedQuery == "وضح اكثر" || trimmedQuery == "وضح أكثر"
+
+    if (isAmbiguousReference) {
+      session.pendingExpectation = PendingExpectation.AWAITING_CLARIFICATION
+      val clarification = if (isArabic) {
+        "هل تقصد المتابعة حول موضوع '$topic' أم تود الاستفسار عن تفصيل آخر؟ يرجى التوضيح لأجيبك بدقة."
+      } else {
+        "Did you mean to follow up on '$topic', or are you asking about something else? Please clarify so I can assist accurately."
+      }
+      return ReasoningResult(
+        replyText = clarification,
+        topicDetected = topic,
+        proactiveSuggestions = listOf(
+          ActionableOption(if (isArabic) "نعم، تابع" else "Yes, continue", "وضح لي أكثر"),
+          ActionableOption(if (isArabic) "موضوع آخر" else "Other topic", "ماذا تستطيع ان تفعل؟")
+        )
+      )
+    }
+
     return null
   }
 

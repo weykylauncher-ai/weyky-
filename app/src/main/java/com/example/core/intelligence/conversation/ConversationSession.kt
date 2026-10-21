@@ -42,6 +42,9 @@ class ConversationSession(private val maxTurns: Int = 20) {
     expectation: PendingExpectation = PendingExpectation.NONE
   ): ConversationTurn {
     if (newTopic != null) {
+      if (currentTopic != null && currentTopic != newTopic && newTopic != "battery" && newTopic != "BATTERY_SUFICIENCY") {
+        lastBatteryScenario = null
+      }
       currentTopic = newTopic
     }
     pendingExpectation = expectation
@@ -89,6 +92,7 @@ class ConversationSession(private val maxTurns: Int = 20) {
       lower.contains("هاتف") || lower.contains("جهاز") || lower.contains("تلفون") || lower.contains("phone") || lower.contains("device") -> {
         currentTopic = "device_info"
         lastReferencedSubject = "phone"
+        lastBatteryScenario = null
       }
       lower.contains("أغنية") || lower.contains("اغنية") || lower.contains("موسيقى") || lower.contains("موسيق") || lower.contains("song") || lower.contains("music") -> {
         currentTopic = "music"
@@ -101,19 +105,24 @@ class ConversationSession(private val maxTurns: Int = 20) {
       lower.contains("موعد") || lower.contains("اجتماع") || lower.contains("جدول") || lower.contains("meeting") || lower.contains("schedule") -> {
         currentTopic = "schedule"
         lastReferencedSubject = "schedule"
+        lastBatteryScenario = null
       }
       lower.contains("طقس") || lower.contains("جو") || lower.contains("مطر") || lower.contains("weather") -> {
         currentTopic = "weather"
         lastReferencedSubject = "weather"
+        lastBatteryScenario = null
       }
       lower.contains("سفر") || lower.contains("سياحة") || lower.contains("رحلة") || lower.contains("travel") -> {
         currentTopic = "travel"
+        lastBatteryScenario = null
       }
       lower.contains("صحة") || lower.contains("نوم") || lower.contains("رياضة") || lower.contains("health") || lower.contains("sleep") -> {
         currentTopic = "health_wellness"
+        lastBatteryScenario = null
       }
       lower.contains("حساب") || lower.contains("رياضيات") || lower.contains("معادلة") || lower.contains("math") -> {
         currentTopic = "calculation"
+        lastBatteryScenario = null
       }
     }
   }

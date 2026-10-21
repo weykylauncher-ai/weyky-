@@ -13,7 +13,8 @@ import java.util.Locale
  */
 class LocalConversationalEngine(
   private val situationSnapshotBuilder: SituationSnapshotBuilder? = null,
-  deviceInfoProvider: DeviceInfoProvider? = null
+  deviceInfoProvider: DeviceInfoProvider? = null,
+  private val reasoningEngine: com.example.core.intelligence.ContextReasoningEngine = com.example.core.intelligence.ContextReasoningEngine()
 ) {
   val session = ConversationSession()
   private val reasoner = ConversationalReasoner(deviceInfoProvider)
@@ -27,18 +28,8 @@ class LocalConversationalEngine(
     if (requirements.domain != IntentDomain.GENERAL && requirements.domain != IntentDomain.DIRECT_COMMAND) {
       val situation = situationSnapshotBuilder?.captureSnapshot(requirements)
       if (situation != null) {
-        val reasoningEngine = com.example.core.intelligence.ContextReasoningEngine()
-        val synthesis = reasoningEngine.synthesize(requirements, situation, query)
-
-        val suggestions = mutableListOf<ActionableOption>()
-        synthesis.nextStep?.let { step ->
-          suggestions.add(ActionableOption(step.label, step.actionIntent ?: step.label))
-        }
-        val isArabic = Locale.getDefault().language.startsWith("ar")
-        if (suggestions.isEmpty()) {
-          suggestions.add(ActionableOption(if (isArabic) "فحص الطقس" else "Weather", "ما حالة الطقس؟"))
-          suggestions.add(ActionableOption(if (isArabic) "فحص البطارية" else "Battery", "كم نسبة البطارية؟"))
-        }
+        val isArabic = query.any { it in '\u0600'..'\u06FF' } || Locale.getDefault().language.startsWith("ar")
+        val synthesis: com.example.core.intelligence.ContextualSynthesis
 
         if (requirements.domain == IntentDomain.BATTERY_SUFICIENCY) {
           val target = com.example.core.intelligence.battery.BatteryTargetTimeExtractor.extractTargetTime(query)
@@ -46,14 +37,27 @@ class LocalConversationalEngine(
             val includesMusic = query.contains("موسيقى") || query.contains("موسيقي") ||
               query.contains("اغنية") || query.contains("أغنية") ||
               query.contains("music") || query.contains("song")
-            val isAr = query.any { it in '\u0600'..'\u06FF' } || Locale.getDefault().language.startsWith("ar")
-            val outcome = reasoningEngine.reasonBatteryForecast(situation, target, includesMusic, isAr)
+            val outcome = reasoningEngine.reasonBatteryForecast(situation, target, includesMusic, isArabic)
             when (outcome) {
               is com.example.core.intelligence.battery.BatteryForecastOutcome.Success -> session.lastBatteryScenario = outcome.scenario
               is com.example.core.intelligence.battery.BatteryForecastOutcome.Charging -> session.lastBatteryScenario = outcome.scenario
               else -> {}
             }
+            synthesis = outcome.synthesis
+          } else {
+            synthesis = reasoningEngine.synthesize(requirements, situation, query)
           }
+        } else {
+          synthesis = reasoningEngine.synthesize(requirements, situation, query)
+        }
+
+        val suggestions = mutableListOf<ActionableOption>()
+        synthesis.nextStep?.let { step ->
+          suggestions.add(ActionableOption(step.label, step.actionIntent ?: step.label))
+        }
+        if (suggestions.isEmpty()) {
+          suggestions.add(ActionableOption(if (isArabic) "فحص الطقس" else "Weather", "ما حالة الطقس؟"))
+          suggestions.add(ActionableOption(if (isArabic) "فحص البطارية" else "Battery", "كم نسبة البطارية؟"))
         }
 
         session.recordAssistantTurn(synthesis.synthesizedSpeech, suggestions, requirements.domain.name)

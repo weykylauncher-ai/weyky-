@@ -37,9 +37,13 @@ data class ContextRequirements(
 object ContextRequirementsRegistry {
   fun resolve(rawInput: String): ContextRequirements {
     val input = rawInput.trim().lowercase()
+      .replace('أ', 'ا')
+      .replace('إ', 'ا')
+      .replace('آ', 'ا')
+      .replace('ة', 'ه')
 
     // 1. Outdoor departure decision: "هل اخرج الان؟" / "اخرج ولا لا" / "should I go out?" / "can I leave now?"
-    if (input.contains("اخرج") || input.contains("اطلع") || input.contains("مغادرة") ||
+    if (input.contains("اخرج") || input.contains("اطلع") || input.contains("مغادره") || input.contains("مغادرة") ||
       input.contains("go out") || input.contains("leave now") || input.contains("should i leave")
     ) {
       return ContextRequirements(
